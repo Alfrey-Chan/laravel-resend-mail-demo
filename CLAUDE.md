@@ -28,38 +28,63 @@
 
 ### User Flow
 1. User visits inquiry form on website
-2. User fills out: name, email, message, optional image attachment
-3. Form validates and saves inquiry to database
-4. System uploads image to AWS S3 (if provided)
-5. System queues two emails:
+2. User fills out:
+   - Email address (required)
+   - City selection (Vancouver, Coquitlam, Burnaby, Port Coquitlam)
+   - Items array (up to 10 items), each item containing:
+     - Photos (up to 3 per item, 2MB each, jpeg/png/webp)
+     - Details/description (required)
+   - Additional details (optional text field)
+3. Form validates input (email format, file types, sizes, etc.)
+4. System saves inquiry to database
+5. System uploads photos to AWS S3 (if provided)
+6. System queues two emails:
    - Company notification (to business email)
    - User confirmation (to user's email)
-6. Background worker processes emails via Resend API
-7. System tracks email delivery status
+7. Background worker processes emails via Resend API
+8. System tracks email delivery status
 
 ---
 
 ## Current Status
 
 ### Completed
-- [ ] Laravel 11 project initialized
-- [ ] Git repository created and pushed to GitHub
-- [ ] Database configured (PostgreSQL)
-- [ ] Resend account created
-- [ ] AWS S3 account created
+- ✅ Laravel 12 project initialized
+- ✅ Git repository created and pushed to GitHub
+- ✅ Resend account created
+- ✅ AWS S3 account created
+- ✅ Resend SDK installed (`resend/resend-php`)
+- ✅ Environment variables configured (RESEND_API_KEY, mail settings)
+- ✅ Laravel Mail driver configured to use Resend
+- ✅ CSRF exemption configured for webhook routes
+- ✅ OrderInquiryRequest validation created with:
+  - Email validation (rfc format)
+  - City validation (Vancouver area cities)
+  - Nested items array support (up to 10 items)
+  - Multiple photo uploads per item (up to 3 photos, 2MB each)
+  - MIME type validation (jpeg, jpg, png, webp)
+  - Text field validation (details, additional_details)
+- ✅ API test route created (`/api/send`)
+- ✅ TestController created for testing email sending
+- ✅ Postman testing validated
 
 ### In Progress
-- [ ] Nothing yet - project just started
+- [ ] Database migrations (inquiries, email_logs, jobs tables)
+- [ ] AWS S3 integration for file uploads
+- [ ] InquiryController (production endpoint)
 
 ### Blocked/Waiting
 - [ ] None
 
 ### Next Steps
-1. Initialize Laravel 11 project
-2. Set up Git repository
-3. Create Resend account
-4. Create AWS S3 account
-5. Install Resend PHP package
+1. Create database migrations (inquiries, email_logs, jobs)
+2. Set up AWS S3 configuration and file upload handling
+3. Create Mailable classes (CompanyNotification, UserConfirmation)
+4. Create Queue Jobs for async email sending
+5. Implement InquiryController with full logic
+6. Add rate limiting middleware
+7. Create webhook handler for Resend events
+8. Write feature tests
 
 ---
 
@@ -99,8 +124,8 @@
 ### ⭐ CRITICAL (Must Have)
 1. **Email Queue System**
    - Status: [ ] Not started
+   - Queue connection configured (database)
    - Laravel Jobs for async email sending
-   - Database queue driver
    - Queue worker process
    - Failed job handling with retries
 
@@ -109,6 +134,7 @@
    - Structured logging for all email attempts
    - Separate log channel for emails
    - Contextual data (recipient, type, inquiry_id)
+   - Note: Don't log validation errors (422) - only system failures
 
 3. **Database Email Tracking**
    - Status: [ ] Not started
@@ -124,31 +150,37 @@
    - Optional: CAPTCHA integration
 
 5. **Input Validation & Sanitization**
-   - Status: [ ] Not started
-   - FormRequest classes
-   - Email format + DNS validation
+   - Status: [✅] Completed
+   - FormRequest class created (OrderInquiryRequest)
+   - Email format validation (rfc)
    - File upload validation (type, size, mime)
-   - HTML sanitization for message content
+   - Nested array validation for items and photos
+   - Max limits: 10 items, 3 photos per item, 2MB per file
+   - Allowed formats: jpeg, jpg, png, webp
+   - Note: DNS validation available but not enabled (adds latency)
 
 6. **Error Handling & Graceful Degradation**
-   - Status: [ ] Not started
-   - Try-catch blocks around email sending
-   - Inquiry saved to DB even if email fails
-   - User receives success response
-   - Admin alerts for persistent failures
+   - Status: [ ] In progress
+   - Validation errors return proper 422 responses
+   - Try-catch blocks needed for email sending
+   - Inquiry saved to DB even if email fails (TODO)
+   - User receives success response (TODO)
+   - Admin alerts for persistent failures (TODO)
 
 7. **Environment-Based Configuration**
-   - Status: [ ] Not started
-   - All credentials in `.env`
-   - `.env.example` with dummy values
-   - Documentation of required variables
+   - Status: [✅] Completed
+   - All credentials in `.env` (RESEND_API_KEY, mail settings)
+   - Mail driver configured (resend)
+   - Sandbox domain configured (onboarding@resend.dev)
+   - `.env.example` needs updating with new variables
 
 8. **AWS S3 Integration**
    - Status: [ ] Not started
-   - Image upload to S3 bucket
-   - URL stored in database
-   - Public/private file handling
-   - File validation and security
+   - S3 credentials in .env (keys present but not configured)
+   - Image upload to S3 bucket (TODO)
+   - URL stored in database (TODO)
+   - Public/private file handling (TODO)
+   - File validation completed ✅
 
 9. **Documentation**
    - Status: [ ] Not started
@@ -202,7 +234,7 @@ app/
 │   │       └── InquiryController.php (API endpoint for form submission)
 │   │   └── WebhookController.php (Resend webhooks - web route)
 │   ├── Requests/
-│   │   └── StoreInquiryRequest.php (validation logic)
+│   │   └── OrderInquiryRequest.php (validation logic)
 │   └── Middleware/
 │       └── ThrottleInquiries.php (custom rate limiting - optional)
 ├── Jobs/
@@ -236,7 +268,7 @@ routes/
 tests/
 └── Feature/
     └── Api/
-        └── InquirySubmissionTest.php
+        └── OrderInquirySubmissionTest.php
 ```
 
 ---
@@ -245,10 +277,31 @@ tests/
 
 ### Public Endpoints
 ```
-POST /api/inquiries
-- Accepts: name, email, message, image (file)
-- Rate limited: 5 per hour per IP, 3 per day per email
-- Returns: { success: true, message: "Inquiry submitted" }
+POST /api/inquiries (production endpoint - TODO)
+POST /api/send (test endpoint - active)
+
+Request Body (form-data):
+- email: string (required, validated with rfc format)
+- city: string (required, one of: vancouver, coquitlam, burnaby, port coquitlam)
+- items: array (nullable, max 10 items)
+  - items[*][photos]: array (nullable, max 3 photos per item)
+    - items[*][photos][*]: file (jpeg/jpg/png/webp, max 2MB)
+  - items[*][details]: string (required, max 5000 chars)
+- additional_details: string (nullable, max 8000 chars)
+
+Response (Success):
+{ "message": "Sent by user@example.com" }
+
+Response (Validation Error - 422):
+{
+  "message": "The email field must be a valid email address.",
+  "errors": {
+    "email": ["The email field must be a valid email address."],
+    "items.0.photos.0": ["The file must be an image."]
+  }
+}
+
+Rate limiting: TODO (5 per hour per IP, 3 per day per email)
 ```
 
 ### Webhook Endpoints
@@ -395,6 +448,4 @@ By completing this project, I will understand:
 
 ---
 
-**Last Updated:** 2024-12-28
-**Project Status:** Not Started
-**Estimated Completion:** 2-3 weeks (part-time)
+**Last Updated:** 2025-12-31
