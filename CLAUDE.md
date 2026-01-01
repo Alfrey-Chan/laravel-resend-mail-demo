@@ -52,26 +52,55 @@
 - ✅ Laravel 12 project initialized
 - ✅ Git repository created and pushed to GitHub
 - ✅ Resend account created
-- ✅ AWS S3 account created
+- ✅ AWS S3 account created and configured
+  - S3 bucket created (`otodoke-order-images`)
+  - IAM user created with S3 access policies
+  - Access keys generated and stored in .env
+  - AWS SDK installed (`aws/aws-sdk-php`)
+  - AWS config added to `config/services.php`
 - ✅ Resend SDK installed (`resend/resend-php`)
-- ✅ Environment variables configured (RESEND_API_KEY, mail settings)
+- ✅ Environment variables configured:
+  - RESEND_API_KEY
+  - MAIL_MAILER=resend
+  - MAIL_FROM_ADDRESS (sandbox: onboarding@resend.dev)
+  - AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_BUCKET, AWS_DEFAULT_REGION)
 - ✅ Laravel Mail driver configured to use Resend
-- ✅ CSRF exemption configured for webhook routes
-- ✅ OrderInquiryRequest validation created with:
+- ✅ CSRF exemption configured for webhook routes (`bootstrap/app.php`)
+- ✅ Database models created:
+  - Inquiry model with hasMany relationship to Items
+  - Item model with belongsTo Inquiry and hasMany Photos
+  - Photo model (assumed based on code structure)
+- ✅ OrderInquiryRequest validation with comprehensive rules:
   - Email validation (rfc format)
-  - City validation (Vancouver area cities)
-  - Nested items array support (up to 10 items)
-  - Multiple photo uploads per item (up to 3 photos, 2MB each)
+  - City validation (vancouver, coquitlam, burnaby, port coquitlam)
+  - Nested items array (nullable, max 10 items)
+  - Multiple photo uploads per item (max 3 photos, 2MB each)
   - MIME type validation (jpeg, jpg, png, webp)
-  - Text field validation (details, additional_details)
-- ✅ API test route created (`/api/send`)
-- ✅ TestController created for testing email sending
-- ✅ Postman testing validated
+  - File size validation (2048KB max per file)
+  - Text field validation (details required, additional_details optional)
+- ✅ InquiryController fully implemented with:
+  - Database transaction handling (rollback on failure)
+  - Nested error handling (graceful S3 failure)
+  - S3 photo upload functionality
+  - Photo metadata storage in database (s3_key, s3_url, filename, size)
+  - Proper logging with context
+  - REST-compliant responses (201 Created, 500 Internal Error)
+- ✅ S3 upload implementation:
+  - Direct AWS SDK usage (S3Client)
+  - Organized file structure (inquiries/{id}/items/{id}/{filename})
+  - Unique filenames using uniqid()
+  - ContentType header for proper MIME handling
+  - Public URL generation (requires bucket policy configuration)
+- ✅ API routes configured (`routes/api.php`)
+- ✅ Postman testing validated:
+  - Form validation working (422 responses)
+  - File upload validation working
+  - Multiple items with photos tested
 
 ### In Progress
-- [ ] Database migrations (inquiries, email_logs, jobs tables)
-- [ ] AWS S3 integration for file uploads
-- [ ] InquiryController (production endpoint)
+- [ ] S3 bucket public access configuration (Block Public Access currently ON)
+- [ ] Database migrations review/refinement
+- [ ] Email sending implementation (currently commented out)
 
 ### Blocked/Waiting
 - [ ] None
@@ -242,6 +271,8 @@ app/
 │   └── SendUserConfirmationEmail.php
 ├── Models/
 │   ├── Inquiry.php
+│   ├── Item.php
+│   ├── Photo.php
 │   └── EmailLog.php
 └── Mail/
     ├── CompanyNotification.php (Mailable)
@@ -258,6 +289,8 @@ resources/
 database/
 └── migrations/
     ├── xxxx_create_inquiries_table.php
+    ├── xxxx_create_items_table.php
+    ├── xxxx_create_photos_table.php
     ├── xxxx_create_email_logs_table.php
     └── xxxx_create_jobs_table.php (for queue)
 
@@ -290,7 +323,7 @@ Request Body (form-data):
 - additional_details: string (nullable, max 8000 chars)
 
 Response (Success):
-{ "message": "Sent by user@example.com" }
+{ "message": "Inquiry submitted successfully." }
 
 Response (Validation Error - 422):
 {
@@ -448,4 +481,4 @@ By completing this project, I will understand:
 
 ---
 
-**Last Updated:** 2025-12-31
+**Last Updated:** 2026-1-01
