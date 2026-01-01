@@ -82,7 +82,7 @@ class InquiryController extends Controller
         } 
     }
 
-    private function storeImagesToS3(array $photos, int $inquiryId, int $itemId): array 
+    private function storeImagesToS3(array $photos, int $inquiryId, string $itemId): array 
     {
         $s3client = new S3Client([
             'version' => 'latest',
@@ -115,7 +115,7 @@ class InquiryController extends Controller
                 's3_key' => $key,
                 's3_url' => $url,
                 'original_filename' => $photo->getClientOriginalName(),
-                'file_size' => $photo->getSize(),
+                'file_size' => $photo->getSize(), //bytes
             ];
         }
 
