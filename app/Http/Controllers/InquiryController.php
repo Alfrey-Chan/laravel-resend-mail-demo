@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendInquiryConfirmation;
 use Aws\S3\S3Client;
 use App\Models\Inquiry;
 use Illuminate\Http\JsonResponse;
@@ -15,12 +16,6 @@ class InquiryController extends Controller
     {   
         $validated = $request->validated();
 
-        // Resend::emails()->send([
-        //     'from' => 'onboarding@resend.dev',
-        //     'to' => 'alfreychan@gmail.com',
-        //     'subject' => 'Resend Test',
-        //     'html' => '<h1>Resend Test</h1>',
-        // ]);
         DB::beginTransaction();
 
         try {
@@ -61,6 +56,8 @@ class InquiryController extends Controller
             } 
 
             DB::commit();
+            $inquiry->load('items.photos');
+            dispatch(new SendInquiryConfirmation($inquiry));
 
             return response()->json([
                 'message' => 'Inquiry submitted successfully.',
