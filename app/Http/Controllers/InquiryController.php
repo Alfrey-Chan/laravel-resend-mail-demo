@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\SendInquiryConfirmation;
+use App\Jobs\SendInquiryReceived;
 use Aws\S3\S3Client;
 use App\Models\Inquiry;
 use Illuminate\Http\JsonResponse;
@@ -58,6 +59,7 @@ class InquiryController extends Controller
             DB::commit();
             $inquiry->load('items.photos');
             dispatch(new SendInquiryConfirmation($inquiry));
+            dispatch(new SendInquiryReceived());
 
             return response()->json([
                 'message' => 'Inquiry submitted successfully.',
